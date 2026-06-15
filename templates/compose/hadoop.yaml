@@ -1,0 +1,91 @@
+# documentation: https://hadoop.apache.org/docs/stable/
+# slogan: Apache Hadoop is an open-source framework for distributed storage and processing of large datasets using the MapReduce programming model.
+# category: database
+# tags: hadoop, hdfs, yarn, mapreduce, big data, distributed storage, distributed computing
+# logo: svgs/hadoop.svg
+# port: 9870
+
+services:
+  namenode:
+    image: apache/hadoop:3.5.0
+    hostname: namenode
+    command: ["hdfs", "namenode"]
+    environment:
+      - SERVICE_URL_NAMENODE_9870
+      - ENSURE_NAMENODE_DIR=/tmp/hadoop-root/dfs/name
+      - CORE-SITE.XML_fs.defaultFS=hdfs://namenode
+      - HDFS-SITE.XML_dfs.namenode.rpc-address=namenode:8020
+      - HDFS-SITE.XML_dfs.replication=1
+    ports:
+      - "9870:9870"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9870"]
+      interval: 10s
+      timeout: 30s
+      retries: 10
+    volumes:
+      - namenode-data:/var/log/hadoop
+
+  datanode:
+    image: apache/hadoop:3.5.0
+    hostname: datanode
+    command: ["hdfs", "datanode"]
+    environment:
+      - CORE-SITE.XML_fs.defaultFS=hdfs://namenode
+    depends_on:
+      namenode:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://namenode:9870"]
+      interval: 10s
+      timeout: 30s
+      retries: 10
+    volumes:
+      - datanode-data:/var/log/hadoop
+
+  resourcemanager:
+    image: apache/hadoop:3.5.0
+    hostname: resourcemanager
+    command: ["yarn", "resourcemanager"]
+    environment:
+      - SERVICE_URL_RESOURCEMANAGER_8088
+      - YARN-SITE.XML_yarn.resourcemanager.hostname=resourcemanager
+      - MAPRED-SITE.XML_mapreduce.framework.name=yarn
+    ports:
+      - "8088:8088"
+    depends_on:
+      namenode:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088"]
+      interval: 10s
+      timeout: 30s
+      retries: 10
+    volumes:
+      - rm-data:/var/log/hadoop
+
+  nodemanager:
+    image: apache/hadoop:3.5.0
+    hostname: nodemanager
+    command: ["yarn", "nodemanager"]
+    environment:
+      - YARN-SITE.XML_yarn.resourcemanager.hostname=resourcemanager
+      - YARN-SITE.XML_yarn.nodemanager.pmem-check-enabled=false
+      - YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled=false
+      - YARN-SITE.XML_yarn.nodemanager.aux-services=mapreduce_shuffle
+    depends_on:
+      resourcemanager:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://resourcemanager:8088"]
+      interval: 10s
+      timeout: 30s
+      retries: 10
+    volumes:
+      - nm-data:/var/log/hadoop
+
+volumes:
+  namenode-data:
+  datanode-data:
+  rm-data:
+  nm-data:
